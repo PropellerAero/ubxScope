@@ -1,0 +1,5 @@
+- Requires pyUBX with SPAN support
+- Run in Bokeh (Tornado) server, render in browser
+
+Expects a UBX stream on stdin:
+`nc 10.3.0.2 2001 | bokeh serve --show ubxScope.py`
