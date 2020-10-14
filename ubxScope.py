@@ -120,11 +120,14 @@ class UBXScopeQueue(UBXManager):
 
 class UBXScope:
   def __init__(self, inputBuffer):
+    self.numRfBlocks = 2
+
+    #Metadata store
+    self.spectrumMetadata = [{'pga':0, 'timeUTC':"NO TIME"} for block in range(self.numRfBlocks)]
 
     #Setup Plot
     self.doc = curdoc()
     self.doc.title = "UBX Scope"
-    self.numRfBlocks = 2
     self.spectrumFigures = [self.numRfBlocks, None]
     self.blockMetadataLabels = [self.numRfBlocks, None]
 
@@ -282,20 +285,21 @@ class UBXScope:
       for block in range(self.numRfBlocks):
         self.spectrumDataSource.data[f'spectrumCMA_{block}'] = np.zeros(256)
 
-  def updateSpectrumPlot(self, spectrumData, spectrumMetaData):
+  def updateSpectrumPlot(self, spectrumData):
     #Update spectrum data
     self.spectrumDataSource.data = spectrumData
 
     #Update metadata
-    for index, block in enumerate(spectrumMetaData):
-      pgaGain = block['pga']
-      self.blockMetadataLabels[index].text = f'PGA Gain: {pgaGain} dB'
+    for index, blockMetadata in enumerate(self.spectrumMetadata):
+      pgaGain = blockMetadata['pgaGain']
+      timeUTC = blockMetadata['timeUTC']
+      self.blockMetadataLabels[index].text = f'PGA Gain: {pgaGain}dB \n UTC: {timeUTC}'
+
 
   def onUBXMessage(self, msg, msgClass):
 
     if msgClass == 'SPAN':
       newSpectrumData = {}
-      newSpectrumMetaData = [self.numRfBlocks, None]
 
       for block in range(msg.numRfBlocks):
         # #Interpolation is sloooowwwww
@@ -323,14 +327,14 @@ class UBXScope:
         newSpectrumData[f'spectrumCMA_{block}'] = np.mean( np.array([ newSpectrumData[f'spectrum_{block}'], self.spectrumDataSource.data[f'spectrumCMA_{block}'] ]), axis=0 )
 
         #Additional metadata for annotations
-        newSpectrumMetaData[block] = {
-          'pga': msg.spectra[block]['pga']
-        }
+        self.spectrumMetadata[block]['pgaGain'] = msg.spectra[block]['pga']
 
-      self.doc.add_next_tick_callback(partial(self.updateSpectrumPlot, spectrumData=newSpectrumData, spectrumMetaData=newSpectrumMetaData))
 
-    #if msgClass == 'PVT':
-      #print(msg.year)
+      self.doc.add_next_tick_callback(partial(self.updateSpectrumPlot, spectrumData=newSpectrumData))
+
+    if msgClass == 'PVT':
+      for block in self.spectrumMetadata:
+        block['timeUTC'] = msg.UTC
 
 #Read from stdin, or wherever....
 inBuffer =  sys.stdin.buffer
