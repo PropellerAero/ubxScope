@@ -171,10 +171,9 @@ class UBXScope:
                    line_width=1,
                    line_color='green')
 
-      #Use an event to update the position of some labels
+      #Handlers to reset aggregates when visibility is changed
       spectrumCMA.on_change('visible', self.cmaVisibleChangeHandler)
-      #figure_.on_change("inner_width", self.figureOnChangeHandler)
-      #figure_.on_change("inner_height", self.figureOnChangeHandler)
+      spectrumMax.on_change('visible', self.maxVisibleChangeHandler)
 
       #Label Axes
       figure_.xaxis.axis_label = "Frequency (Hz)"
@@ -284,6 +283,12 @@ class UBXScope:
     if new == True:
       for block in range(self.numRfBlocks):
         self.spectrumDataSource.data[f'spectrumCMA_{block}'] = np.zeros(256)
+
+  #Reset spectrum max when set visible
+  def maxVisibleChangeHandler(self,attr,old,new):
+    if new == True:
+      for block in range(self.numRfBlocks):
+        self.spectrumDataSource.data[f'spectrumMaxima__{block}'] = np.zeros(256)
 
   def updateSpectrumPlot(self, spectrumData):
     #Update spectrum data
