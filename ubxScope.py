@@ -138,13 +138,14 @@ class UBXScope:
     #ndarray for spectrum average
     self.spectrumWindow = [np.zeros((TIME_AVERAGING_WINDOW_LENGTH,SPAN_BIN_COUNT)) for block in range(self.numRfBlocks) ]
     self.spectrumWindowIndex=0; #Use the ndarray as a circular buffer
+    self.spectrumWindowFilled=0; #Buffer fullness
 
     #Setup Data Source mapping for each block
     dataSourceDict = {}
     for block in range(self.numRfBlocks):
       dataSourceDict[f'spectrumBinCenterFreqs_{block}'] = np.zeros(SPAN_BIN_COUNT)
-      dataSourceDict[f'spectrumMaxima_{block}'] = np.zeros(SPAN_BIN_COUNT)
-      dataSourceDict[f'spectrumCMA_{block}'] = np.zeros(SPAN_BIN_COUNT)
+      dataSourceDict[f'spectrumMax_{block}'] = np.zeros(SPAN_BIN_COUNT)
+      dataSourceDict[f'spectrumAvg_{block}'] = np.zeros(SPAN_BIN_COUNT)
       dataSourceDict[f'spectrum_{block}'] = np.zeros(SPAN_BIN_COUNT)
     self.spectrumDataSource=ColumnDataSource(data=dataSourceDict)
 
@@ -167,17 +168,17 @@ class UBXScope:
                    line_color='blue')
       spectrumMax = figure_.line(source=self.spectrumDataSource,
                    x=f'spectrumBinCenterFreqs_{block}',
-                   y=f'spectrumMaxima_{block}',
+                   y=f'spectrumMax_{block}',
                    line_width=1,
                    line_color='red')
       spectrumCMA = figure_.line(source=self.spectrumDataSource,
                    x=f'spectrumBinCenterFreqs_{block}',
-                   y=f'spectrumCMA_{block}',
+                   y=f'spectrumAvg_{block}',
                    line_width=1,
                    line_color='green')
 
       #Handlers to reset aggregates when visibility is changed
-      spectrumCMA.on_change('visible', self.cmaVisibleChangeHandler)
+      spectrumCMA.on_change('visible', self.avgVisibleChangeHandler)
       spectrumMax.on_change('visible', self.maxVisibleChangeHandler)
 
       #Label Axes
@@ -284,16 +285,19 @@ class UBXScope:
 
 
   #Reset cumulative average when set visible
-  def cmaVisibleChangeHandler(self,attr,old,new):
+  def avgVisibleChangeHandler(self,attr,old,new):
     if new == True:
       for block in range(self.numRfBlocks):
-        self.spectrumDataSource.data[f'spectrumCMA_{block}'] = np.zeros(256)
+        #Clear the average and the time series buffer
+        self.spectrumDataSource.data[f'spectrumAvg_{block}'] = np.zeros(256)
+        self.spectrumWindow = [np.zeros((TIME_AVERAGING_WINDOW_LENGTH,SPAN_BIN_COUNT)) for block in range(self.numRfBlocks) ]
+        self.spectrumWindowIndex = self.spectrumWindowFilled = 0;
 
   #Reset spectrum max when set visible
   def maxVisibleChangeHandler(self,attr,old,new):
     if new == True:
       for block in range(self.numRfBlocks):
-        self.spectrumDataSource.data[f'spectrumMaxima__{block}'] = np.zeros(256)
+        self.spectrumDataSource.data[f'spectrumMax_{block}'] = np.zeros(256)
 
   def updateSpectrumPlot(self, spectrumData):
     #Update spectrum data
@@ -316,19 +320,11 @@ class UBXScope:
       if self.spectrumWindowIndex >= TIME_AVERAGING_WINDOW_LENGTH:
         self.spectrumWindowIndex = 0
 
+      #Buffer fullness
+      if (self.spectrumWindowFilled < TIME_AVERAGING_WINDOW_LENGTH):
+        self.spectrumWindowFilled = self.spectrumWindowFilled +1;
+
       for block in range(msg.numRfBlocks):
-        # #Interpolation is sloooowwwww
-        # if False:
-        #   min_x=msg.spectra[block]['spectrumBinCenterFreqs'][0]
-        #   max_x=msg.spectra[block]['spectrumBinCenterFreqs'][-1]
-
-        #   splineFn = CubicSpline(msg.spectra[block]['spectrumBinCenterFreqs'], msg.spectra[block]['spectrum'])
-
-        #   x_interpol = np.linspace(min_x, max_x, 1000)
-        #   y_interpol = splineFn(x_interpol)
-        #   newSpectrumData[f'spectrumBinCenterFreqs_{block}'] = x_interpol
-        #   newSpectrumData[f'spectrum_{block}'] =y_interpol
-
         #Centre Frequencies
         newSpectrumData[f'spectrumBinCenterFreqs_{block}'] = msg.spectra[block]['spectrumBinCenterFreqs']
 
@@ -336,14 +332,15 @@ class UBXScope:
         newSpectrumData[f'spectrum_{block}'] = msg.spectra[block]['spectrum']
 
         #Calculate PSD max
-        newSpectrumData[f'spectrumMaxima_{block}'] = np.maximum(newSpectrumData[f'spectrum_{block}'], self.spectrumDataSource.data[f'spectrumMaxima_{block}'])
+        newSpectrumData[f'spectrumMax_{block}'] = np.maximum(newSpectrumData[f'spectrum_{block}'], self.spectrumDataSource.data[f'spectrumMax_{block}'])
 
-        #Replace row at index, to avoid push/pop. Order doesn't matter unless the weighting is applied
+        #Calculate Moving Average
+        #Replace row at index, to avoid push/pop. Order/wrapping doesn't matter unless weighting is applied
         blockSpectrumWindow=self.spectrumWindow[block]
         blockSpectrumWindow[self.spectrumWindowIndex,:] = newSpectrumData[f'spectrum_{block}']
 
-        windowedSpectrum=np.sum(blockSpectrumWindow, axis=0)/TIME_AVERAGING_WINDOW_LENGTH
-        newSpectrumData[f'spectrumCMA_{block}'] =windowedSpectrum
+        #Set the data source average
+        newSpectrumData[f'spectrumAvg_{block}'] = np.sum(blockSpectrumWindow[0:self.spectrumWindowFilled], axis=0)/self.spectrumWindowFilled
 
         #Additional metadata for annotations
         self.spectrumMetadata[block]['pgaGain'] = msg.spectra[block]['pga']
