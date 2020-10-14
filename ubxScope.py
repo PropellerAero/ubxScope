@@ -47,51 +47,50 @@ X5A_FC                 = 1176450000
 X5B_FC                 = 1207140000
 X6_FC                  = 1278750000
 
-#GNSS Frequencies (Hz)
+#GNSS Signals (Hz)
 #Multiple signals sharing a frequency for each system are not shown
 #The signal identifier for the 'open' signal is added
 #Where multiple open signals are present, no identifier is added
 
 #GPS
-GPS_L1_FC                  = X1_FC
-GPS_L2_FC                  = X2_FC
-GPS_L5_FC                  = X5A_FC
+GPS_L1_CA_P_C_M_FC             = X1_FC  # L1 C/A, P, C, M
+GPS_L2_P_CM_CL_M_FC            = X2_FC  # L2 P, CL, CM, M
+GPS_L5_I_Q_FC                 = X5A_FC  # L5 I,Q
 
 #Glonass FDMA
-GLONASS_L1OF_FC       = 1602000000
-GLONASS_L1OF_SPACING      = 562500
-GLONASS_L2OF_FC       = 1246000000
-GLONASS_L2OF_SPACING      = 437500
+GLONASS_L1_OF_SF_FC       = 1602000000  # L1 OF,SF
+GLONASS_L1_OF_SF_SPACING      = 562500
+GLONASS_L2_OF_SF_FC       = 1246000000  # L2 OF,SF
+GLONASS_L2_OF_SF_SPACING      = 437500
 
 #Glonass CDMA
-GLONASS_L1OC_FC       = 1600995000
-GLONASS_L2OC_FC       = 1248060000
-GLONASS_L3OC_FC       = 1202025000
+GLONASS_L1_OC_SC_FC       = 1600995000  # L1 OC,SC
+GLONASS_L2_OC_SC_FC       = 1248060000  # L2 OC,SC
+GLONASS_L3_OC_SC_FC       = 1202025000  # L3 OC,SC
 
 #Galileo
-GALILEO_E1_FC              = X1_FC
-GALILEO_E5A_FC            = X5A_FC
-GALILEO_E5B_FC            = X5B_FC
-GALILEO_E5_ALTBOC_FC  = 1191795000
-GALILEO_E6_FC              = X6_FC
+GALILEO_E1_I_Q_FC              = X1_FC  # E1 I,Q
+GALILEO_E5A_I_Q_FC            = X5A_FC  # E5a I,Q
+GALILEO_E5B_I_Q_FC            = X5B_FC  # E5b I,Q
+GALILEO_E5_ALTBOC_FC      = 1191795000  # E5 Altboc (a + b)
+GALILEO_E6_I_Q_PRS_FC          = X6_FC  # E6 I,Q,PRS
 
 #Beidou
-BEIDOU_B1I_FC         = 1561098000
-BEIDOU_B1C_FC              = X1_FC
-BEIDOU_B2I_FC         = 1207140000
-BEIDOU_B2A_FC             = X5A_FC
-BEIDOU_B2B_FC             = X5B_FC
-BEIDOU_B3I_FC         = 1268520000
+BEIDOU_B1_I_Q_FC          = 1561098000  # B1 I,Q
+BEIDOU_B1_C_A_FC               = X1_FC  # B1 C,a
+BEIDOU_B2_I_Q_B_FC            = X5B_FC  # B2 I,Q,b
+BEIDOU_B2_A_FC                = X5A_FC  # B2 a
+BEIDOU_B3_I_Q_A_FC        = 1268520000  # B3 I,Q,A
 
 #SBAS
-SBAS_L1_FC                 = X1_FC
-SBAS_L5_FC                = X5A_FC
+SBAS_L1_FC                     = X1_FC
+SBAS_L5_FC                    = X5A_FC
 
 #QZSS
-QZSS_L1_FC                 = X1_FC
-QZSS_L2_FC                 = X2_FC
-QZSS_L5_FC                = X5A_FC
-QZSS_L6_FC                 = X6_FC
+QZSS_L1_CA_C_SAIF_FC           = X1_FC  # L1 CA, C, SAIF
+QZSS_L2_CM_CL_FC               = X2_FC  # L2 CM, CL
+QZSS_L5_I_Q_FC                = X5A_FC  # L5 I,Q
+QZSS_E6_LEX_FC                 = X6_FC  # E6 LEX
 
 # Be quiet on errors.
 class UBXScopeQueue(UBXManager):
@@ -192,72 +191,74 @@ class UBXScope:
       #Centre Frequencies
       #GPS
       freqAnnotationsGPS = [
-        Span(location=GPS_L1_FC,dimension='height', line_color='orange',line_dash='dashed', line_width=0.5),
-        Label(text='GPS L1', x=GPS_L1_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center'),
-        Span(location=GPS_L2_FC,dimension='height', line_color='orange',line_dash='dashed', line_width=0.5),
-        Label(text='GPS L2', x=GPS_L2_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center'),
-        Span(location=GPS_L5_FC,dimension='height', line_color='orange',line_dash='dashed', line_width=0.5),
-        Label(text='GPS L5', x=GPS_L5_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center')
+        Span(location=GPS_L1_CA_P_C_M_FC,dimension='height', line_color='orange',line_dash='dashed', line_width=0.5),
+        Label(text='GPS L1', x=GPS_L1_CA_P_C_M_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center', text_font_style='bold'),
+        Span(location=GPS_L2_P_CM_CL_M_FC,dimension='height', line_color='orange',line_dash='dashed', line_width=0.5),
+        Label(text='GPS L2', x=GPS_L2_P_CM_CL_M_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center', text_font_style='bold'),
+        Span(location=GPS_L5_I_Q_FC,dimension='height', line_color='orange',line_dash='dashed', line_width=0.5),
+        Label(text='GPS L5', x=GPS_L5_I_Q_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center')
       ]
 
       freqAnnotationsGalileo = [
-        Span(location=GALILEO_E1_FC,dimension='height', line_color='green',line_dash='dashed', line_width=0.5),
-        Label(text='GAL E1', x=GALILEO_E1_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center'),
-        Span(location=GALILEO_E5A_FC,dimension='height', line_color='green',line_dash='dashed', line_width=0.5),
-        Label(text='GAL E5B', x=GALILEO_E5A_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center'),
-        Span(location=GALILEO_E5B_FC,dimension='height', line_color='green',line_dash='dashed', line_width=0.5),
-        Label(text='GAL E5B', x=GALILEO_E5B_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center'),
+        Span(location=GALILEO_E1_I_Q_FC,dimension='height', line_color='green',line_dash='dashed', line_width=0.5),
+        Label(text='GAL E1', x=GALILEO_E1_I_Q_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center', text_font_style='bold'),
+        Span(location=GALILEO_E5A_I_Q_FC,dimension='height', line_color='green',line_dash='dashed', line_width=0.5),
+        Label(text='GAL E5b', x=GALILEO_E5A_I_Q_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center'),
+        Span(location=GALILEO_E5B_I_Q_FC,dimension='height', line_color='green',line_dash='dashed', line_width=0.5),
+        Label(text='GAL E5a', x=GALILEO_E5B_I_Q_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center', text_font_style='bold'),
         Span(location=GALILEO_E5_ALTBOC_FC,dimension='height', line_color='green',line_dash='dashed', line_width=0.5),
         Label(text='GAL E5 ALTBOC', x=GALILEO_E5_ALTBOC_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center'),
-        Span(location=GALILEO_E6_FC,dimension='height', line_color='green',line_dash='dashed', line_width=0.5),
-        Label(text='GAL E6', x=GALILEO_E6_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center')
+        Span(location=GALILEO_E6_I_Q_PRS_FC,dimension='height', line_color='green',line_dash='dashed', line_width=0.5),
+        Label(text='GAL E6', x=GALILEO_E6_I_Q_PRS_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center')
       ]
 
       #Beidou
       freqAnnotationsBeidou = [
-        Span(location=BEIDOU_B1I_FC,dimension='height', line_color='red',line_dash='dashed', line_width=0.5),
-        Label(text='BDS B1I', x=BEIDOU_B1I_FC, y=YMIN_LABEL+(3*LABEL_YSPACE), text_font_size='9px', text_align='center'),
-        Span(location=BEIDOU_B1C_FC,dimension='height', line_color='red',line_dash='dashed', line_width=0.5),
-        Label(text='BDS B1C', x=BEIDOU_B1C_FC, y=YMIN_LABEL+(3*LABEL_YSPACE), text_font_size='9px', text_align='center'),
-        Span(location=BEIDOU_B2A_FC,dimension='height', line_color='red',line_dash='dashed', line_width=0.5),
-        Label(text='BDS B2A', x=BEIDOU_B2A_FC, y=YMIN_LABEL+(3*LABEL_YSPACE), text_font_size='9px', text_align='center'),
-        Span(location=BEIDOU_B2B_FC,dimension='height', line_color='red',line_dash='dashed', line_width=0.5),
-        Label(text='BDS B2B', x=BEIDOU_B2B_FC, y=YMIN_LABEL+(3*LABEL_YSPACE), text_font_size='9px', text_align='center'),
-        Span(location=BEIDOU_B3I_FC,dimension='height', line_color='red',line_dash='dashed', line_width=0.5),
-        Label(text='BDS B3I', x=BEIDOU_B3I_FC, y=YMIN_LABEL+(3*LABEL_YSPACE), text_font_size='9px', text_align='center'),
+        Span(location=BEIDOU_B1_I_Q_FC,dimension='height', line_color='red',line_dash='dashed', line_width=0.5),
+        Label(text='BDS B1 I/Q', x=BEIDOU_B1_I_Q_FC, y=YMIN_LABEL+(3*LABEL_YSPACE), text_font_size='9px', text_align='center', text_font_style='bold'),
+        Span(location=BEIDOU_B1_C_A_FC,dimension='height', line_color='red',line_dash='dashed', line_width=0.5),
+        Label(text='BDS B1 C/a', x=BEIDOU_B1_C_A_FC, y=YMIN_LABEL+(3*LABEL_YSPACE), text_font_size='9px', text_align='center'),
+        Span(location=BEIDOU_B2_A_FC,dimension='height', line_color='red',line_dash='dashed', line_width=0.5),
+        Label(text='BDS B2 a', x=BEIDOU_B2_A_FC, y=YMIN_LABEL+(3*LABEL_YSPACE), text_font_size='9px', text_align='center'),
+        Span(location=BEIDOU_B2_I_Q_B_FC,dimension='height', line_color='red',line_dash='dashed', line_width=0.5),
+        Label(text='BDS B2 I/Q/b', x=BEIDOU_B2_I_Q_B_FC, y=YMIN_LABEL+(3*LABEL_YSPACE), text_font_size='9px', text_align='center', text_font_style='bold'),
+        Span(location=BEIDOU_B3_I_Q_A_FC,dimension='height', line_color='red',line_dash='dashed', line_width=0.5),
+        Label(text='BDS B3 I/Q/A', x=BEIDOU_B3_I_Q_A_FC, y=YMIN_LABEL+(3*LABEL_YSPACE), text_font_size='9px', text_align='center'),
       ]
 
       freqAnnotationsQZSS = [
-        Span(location=QZSS_L1_FC,dimension='height', line_color='yellow',line_dash='dashed', line_width=0.5),
-        Label(text='QZSS L1', x=QZSS_L1_FC, y=YMIN_LABEL+(4*LABEL_YSPACE), text_font_size='9px', text_align='center'),
-        Span(location=QZSS_L2_FC,dimension='height', line_color='yellow',line_dash='dashed', line_width=0.5),
-        Label(text='QZSS L2', x=QZSS_L2_FC, y=YMIN_LABEL+(4*LABEL_YSPACE), text_font_size='9px', text_align='center'),
-        Span(location=QZSS_L5_FC,dimension='height', line_color='yellow',line_dash='dashed', line_width=0.5),
-        Label(text='QZSS L5', x=QZSS_L5_FC, y=YMIN_LABEL+(4*LABEL_YSPACE), text_font_size='9px', text_align='center'),
-        Span(location=QZSS_L6_FC,dimension='height', line_color='yellow',line_dash='dashed', line_width=0.5),
-        Label(text='QZSS L6', x=QZSS_L6_FC, y=YMIN_LABEL+(4*LABEL_YSPACE), text_font_size='9px', text_align='center')
+        Span(location=QZSS_L1_CA_C_SAIF_FC,dimension='height', line_color='yellow',line_dash='dashed', line_width=0.5),
+        Label(text='QZSS L1', x=QZSS_L1_CA_C_SAIF_FC, y=YMIN_LABEL+(4*LABEL_YSPACE), text_font_size='9px', text_align='center', text_font_style='bold'),
+        Span(location=QZSS_L2_CM_CL_FC,dimension='height', line_color='yellow',line_dash='dashed', line_width=0.5),
+        Label(text='QZSS L2', x=QZSS_L2_CM_CL_FC, y=YMIN_LABEL+(4*LABEL_YSPACE), text_font_size='9px', text_align='center', text_font_style='bold'),
+        Span(location=QZSS_L5_I_Q_FC,dimension='height', line_color='yellow',line_dash='dashed', line_width=0.5),
+        Label(text='QZSS L5', x=QZSS_L5_I_Q_FC, y=YMIN_LABEL+(4*LABEL_YSPACE), text_font_size='9px', text_align='center'),
+        Span(location=QZSS_E6_LEX_FC,dimension='height', line_color='yellow',line_dash='dashed', line_width=0.5),
+        Label(text='QZSS E6 LEX', x=QZSS_E6_LEX_FC, y=YMIN_LABEL+(4*LABEL_YSPACE), text_font_size='9px', text_align='center')
       ]
 
 
       freqAnnotationsGlonass = [
-        Span(location=GLONASS_L1OC_FC,dimension='height', line_color='purple',line_dash='dashed', line_width=0.5),
-        Label(text='GLO L1OC', x=GLONASS_L1OC_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center'),
-        Span(location=GLONASS_L3OC_FC,dimension='height', line_color='purple',line_dash='dashed', line_width=0.5),
-        Label(text='GLO L1OC', x=GLONASS_L3OC_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center'),
+        Span(location=GLONASS_L1_OC_SC_FC,dimension='height', line_color='purple',line_dash='dashed', line_width=0.5),
+        Label(text='GLO L1 CDMA', x=GLONASS_L1_OC_SC_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center'),
+        Span(location=GLONASS_L2_OC_SC_FC,dimension='height', line_color='purple',line_dash='dashed', line_width=0.5),
+        Label(text='GLO L2 CDMA', x=GLONASS_L2_OC_SC_FC, y=YMIN_LABEL+LABEL_YSPACE, text_font_size='9px', text_align='center'),
+        Span(location=GLONASS_L3_OC_SC_FC,dimension='height', line_color='purple',line_dash='dashed', line_width=0.5),
+        Label(text='GLO L3 CDMA', x=GLONASS_L3_OC_SC_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center'),
       ]
       #GLONASS FDMA L1OF & L2OF Carriers
       for carrier in range(-7,7):
         #L1OF
-        gloL1OFf0 = GLONASS_L1OF_FC + (carrier * GLONASS_L1OF_SPACING)
+        gloL1OFf0 = GLONASS_L1_OF_SF_FC + (carrier * GLONASS_L1_OF_SF_SPACING)
         freqAnnotationsGlonass.append(Span(location=gloL1OFf0, dimension='height', line_color='purple',line_dash='dashed', line_width=0.2))
 
         #L2OF
-        gloL2OFf0 = GLONASS_L2OF_FC + (carrier * GLONASS_L2OF_SPACING)
+        gloL2OFf0 = GLONASS_L2_OF_SF_FC + (carrier * GLONASS_L2_OF_SF_SPACING)
         freqAnnotationsGlonass.append(Span(location=gloL2OFf0, dimension='height', line_color='purple',line_dash='dashed', line_width=0.2))
 
       #GLONASS FDMA labels
-      freqAnnotationsGlonass.append(Label(text='GLO L1OF', x=GLONASS_L1OF_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center'))
-      freqAnnotationsGlonass.append(Label(text='GLO L2OF', x=GLONASS_L2OF_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center'))
+      freqAnnotationsGlonass.append(Label(text='GLO L1 FDMA', x=GLONASS_L1_OF_SF_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center', text_font_style='bold'))
+      freqAnnotationsGlonass.append(Label(text='GLO L2 FDMA', x=GLONASS_L2_OF_SF_FC, y=YMIN_LABEL, text_font_size='9px', text_align='center', text_font_style='bold'))
 
       self.spectrumFigures[block].renderers.extend(freqAnnotationsGPS+freqAnnotationsGalileo+freqAnnotationsGlonass+freqAnnotationsQZSS+freqAnnotationsBeidou)
 
