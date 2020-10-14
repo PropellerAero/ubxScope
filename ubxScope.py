@@ -15,13 +15,14 @@ from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, Legend, Span, Label, Div
 from bokeh.document import without_document_lock
 
-#from scipy.interpolate import CubicSpline
-
 TOOLTIPS = [
     ("PSD", "$y dB @ $x Hz"),
 ]
 
 TOOLS = "pan,wheel_zoom,box_zoom,reset,save"
+
+#Averaging Window Length
+TIME_AVERAGING_WINDOW_LENGTH= 20 #data frames (i.e defined by epoch rate)
 
 #Bin Width
 #This is defined in SPAN but for convenience of plotting setup
@@ -133,6 +134,10 @@ class UBXScope:
 
     #Hold column layouts for each block
     self.blockColumnLayouts = [self.numRfBlocks, None]
+
+    #ndarray for spectrum average
+    self.spectrumWindow = [np.zeros((TIME_AVERAGING_WINDOW_LENGTH,SPAN_BIN_COUNT)) for block in range(self.numRfBlocks) ]
+    self.spectrumWindowIndex=0; #Use the ndarray as a circular buffer
 
     #Setup Data Source mapping for each block
     dataSourceDict = {}
@@ -306,6 +311,11 @@ class UBXScope:
     if msgClass == 'SPAN':
       newSpectrumData = {}
 
+      #Indexing for the moving average window
+      self.spectrumWindowIndex = self.spectrumWindowIndex + 1;
+      if self.spectrumWindowIndex >= TIME_AVERAGING_WINDOW_LENGTH:
+        self.spectrumWindowIndex = 0
+
       for block in range(msg.numRfBlocks):
         # #Interpolation is sloooowwwww
         # if False:
@@ -328,8 +338,12 @@ class UBXScope:
         #Calculate PSD max
         newSpectrumData[f'spectrumMaxima_{block}'] = np.maximum(newSpectrumData[f'spectrum_{block}'], self.spectrumDataSource.data[f'spectrumMaxima_{block}'])
 
-        #Calculate PSD moving average
-        newSpectrumData[f'spectrumCMA_{block}'] = np.mean( np.array([ newSpectrumData[f'spectrum_{block}'], self.spectrumDataSource.data[f'spectrumCMA_{block}'] ]), axis=0 )
+        #Replace row at index, to avoid push/pop. Order doesn't matter unless the weighting is applied
+        blockSpectrumWindow=self.spectrumWindow[block]
+        blockSpectrumWindow[self.spectrumWindowIndex,:] = newSpectrumData[f'spectrum_{block}']
+
+        windowedSpectrum=np.sum(blockSpectrumWindow, axis=0)/TIME_AVERAGING_WINDOW_LENGTH
+        newSpectrumData[f'spectrumCMA_{block}'] =windowedSpectrum
 
         #Additional metadata for annotations
         self.spectrumMetadata[block]['pgaGain'] = msg.spectra[block]['pga']
