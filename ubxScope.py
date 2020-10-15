@@ -175,21 +175,21 @@ class UBXScope:
                    x='spectrumBinCenterFreqs',
                    y='spectrum',
                    line_width=1,
-                   line_color='blue',
-                   selection_color='black')
+                   line_color='blue'
+                   )
 
       spectrumMax = figure_.line(source=self.spectrumDataSources[block],
                    x='spectrumBinCenterFreqs',
                    y='spectrumMax',
                    line_width=1,
-                   line_color='red',
-                   selection_color='black')
+                   line_color='red'
+                   )
       spectrumAvg = figure_.line(source=self.spectrumDataSources[block],
                    x='spectrumBinCenterFreqs',
                    y='spectrumAvg',
                    line_width=1,
-                   line_color='green',
-                   selection_color='black')
+                   line_color='green'
+                  )
 
       #spectrum.data_source.on_change('selected', self.selectCallback)
       #spectrum.on_change('line_indices', self.selectCallback)
