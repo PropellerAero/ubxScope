@@ -12,17 +12,16 @@ import numpy as np
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Legend, Span, Label, Div
-from bokeh.document import without_document_lock
+from bokeh.models import ColumnDataSource, Legend, Span, Label, Div, TapTool
 
 TOOLTIPS = [
     ("PSD", "$y dB @ $x Hz"),
 ]
 
-TOOLS = "pan,wheel_zoom,box_zoom,reset,save"
+TOOLS = "pan,wheel_zoom,box_zoom,reset,save,tap"
 
 #Averaging Window Length
-TIME_AVERAGING_WINDOW_LENGTH= 20 #data frames (i.e defined by epoch rate)
+TIME_AVERAGING_WINDOW_LENGTH= 4 #data frames (i.e defined by epoch rate)
 
 #Bin Width
 #This is defined in SPAN but for convenience of plotting setup
@@ -96,15 +95,10 @@ QZSS_E6_LEX_FC                 = X6_FC  # E6 LEX
 # Be quiet on errors.
 class UBXScopeQueue(UBXManager):
   def __init__(self, ser, debug=False, eofTimeout=None, onUBXCallback=None):
-        """
-        :param ser: Passed to UBXManager
-        :param eofTimeout: Passed to UBXManager
-        """
         self._queue = Queue()
         # Reflects the has-a queue's get() and empty() methods
         self.empty = self._queue.empty
         self.onUBXCallback=onUBXCallback
-        self.firstUBXMessage = True
         super(UBXScopeQueue, self).__init__(ser=ser, debug=debug, eofTimeout=eofTimeout)
 
   def onUBXError(self, msgClass, msgId, errMsg):
@@ -123,34 +117,50 @@ class UBXScope:
   def __init__(self, inputBuffer):
     self.numRfBlocks = 2
 
-    #Metadata store
-    self.spectrumMetadata = [{'pga':0, 'timeUTC':"NO TIME"} for block in range(self.numRfBlocks)]
+    #Metadata stores
+    #Per block
+    self.spectrumMetadata = [{'pga':0,} for block in range(self.numRfBlocks)]
+    #Global
+    self.ubxMetadata =  {'timeUTC':""}
 
     #Setup Plot
     self.doc = curdoc()
     self.doc.title = "UBX Scope"
-    self.spectrumFigures = [self.numRfBlocks, None]
-    self.blockMetadataLabels = [self.numRfBlocks, None]
 
-    #Hold column layouts for each block
-    self.blockColumnLayouts = [self.numRfBlocks, None]
-
-    #ndarray for spectrum average
-    self.spectrumWindow = [np.zeros((TIME_AVERAGING_WINDOW_LENGTH,SPAN_BIN_COUNT)) for block in range(self.numRfBlocks) ]
-    self.spectrumWindowIndex=0; #Use the ndarray as a circular buffer
-    self.spectrumWindowFilled=0; #Buffer fullness
-
-    #Setup Data Source mapping for each block
-    dataSourceDict = {}
-    for block in range(self.numRfBlocks):
-      dataSourceDict[f'spectrumBinCenterFreqs_{block}'] = np.zeros(SPAN_BIN_COUNT)
-      dataSourceDict[f'spectrumMax_{block}'] = np.zeros(SPAN_BIN_COUNT)
-      dataSourceDict[f'spectrumAvg_{block}'] = np.zeros(SPAN_BIN_COUNT)
-      dataSourceDict[f'spectrum_{block}'] = np.zeros(SPAN_BIN_COUNT)
-    self.spectrumDataSource=ColumnDataSource(data=dataSourceDict)
-
+    #Per-block arrays
+    self.spectrumFigures =  [self.numRfBlocks, None]
+    self.blockMetadataLabels =  [self.numRfBlocks, None]
+    self.blockColumnLayouts =  [self.numRfBlocks, None]
+    self.spectrumAvgBuffers =  [self.numRfBlocks, None]
+    self.spectrumDataSources = [self.numRfBlocks, None]
+    self.selectionLabels  = [self.numRfBlocks, None]
+    self.selectionMarkers = [self.numRfBlocks, None]
+    self.selectionLabelData  = [self.numRfBlocks, None]
     #Add a figure for each block
     for block in range(self.numRfBlocks):
+
+      #One Data Source for each figure, shared per-plot
+      self.spectrumDataSources[block] = ColumnDataSource(data={
+        'spectrumBinCenterFreqs': np.zeros(SPAN_BIN_COUNT),
+        'spectrumMax': np.zeros(SPAN_BIN_COUNT),
+        'spectrumAvg' : np.zeros(SPAN_BIN_COUNT),
+        'spectrum' : np.zeros(SPAN_BIN_COUNT)
+      })
+
+      #Moving Average Buffer
+      self.spectrumAvgBuffers[block] = {
+        'buffer': np.zeros((TIME_AVERAGING_WINDOW_LENGTH,SPAN_BIN_COUNT)),
+        'index': 0, #Use the ndarray as a circular buffer
+        'filled': 1 #Buffer fullness
+      }
+
+      self.selectionLabelData[block] = {
+        'dataSourceIndex': 0,
+        'frequency' : 0,
+        'maxPower' : 0,
+        'avgPower' : 0,
+        'power' : 0
+      }
 
       figure_ = figure(title=f"UBX SPAN Block {block+1}",
                       output_backend="webgl",
@@ -161,25 +171,33 @@ class UBXScope:
                       plot_height=PLOT_HEIGHT)
 
       # Add instantaneous, avg, and max line plots
-      spectrum = figure_.line(source=self.spectrumDataSource,
-                   x=f'spectrumBinCenterFreqs_{block}',
-                   y=f'spectrum_{block}',
+      spectrum = figure_.line(source=self.spectrumDataSources[block],
+                   x='spectrumBinCenterFreqs',
+                   y='spectrum',
                    line_width=1,
-                   line_color='blue')
-      spectrumMax = figure_.line(source=self.spectrumDataSource,
-                   x=f'spectrumBinCenterFreqs_{block}',
-                   y=f'spectrumMax_{block}',
+                   line_color='blue',
+                   selection_color='black')
+
+      spectrumMax = figure_.line(source=self.spectrumDataSources[block],
+                   x='spectrumBinCenterFreqs',
+                   y='spectrumMax',
                    line_width=1,
-                   line_color='red')
-      spectrumCMA = figure_.line(source=self.spectrumDataSource,
-                   x=f'spectrumBinCenterFreqs_{block}',
-                   y=f'spectrumAvg_{block}',
+                   line_color='red',
+                   selection_color='black')
+      spectrumAvg = figure_.line(source=self.spectrumDataSources[block],
+                   x='spectrumBinCenterFreqs',
+                   y='spectrumAvg',
                    line_width=1,
-                   line_color='green')
+                   line_color='green',
+                   selection_color='black')
+
+      #spectrum.data_source.on_change('selected', self.selectCallback)
+      #spectrum.on_change('line_indices', self.selectCallback)
+      self.spectrumDataSources[block].selected.on_change('line_indices', partial(self.lineSelectCallback, block=block))
 
       #Handlers to reset aggregates when visibility is changed
-      spectrumCMA.on_change('visible', self.avgVisibleChangeHandler)
-      spectrumMax.on_change('visible', self.maxVisibleChangeHandler)
+      spectrumAvg.on_change('visible', partial(self.avgVisibleChangeHandler, block=block))
+      spectrumMax.on_change('visible', partial(self.maxVisibleChangeHandler, block=block))
 
       #Label Axes
       figure_.xaxis.axis_label = "Frequency (Hz)"
@@ -189,10 +207,11 @@ class UBXScope:
       legend = Legend(items=[
         ("PSD"   , [spectrum]),
         ("Max PSD" , [spectrumMax]),
-        ("Avg PSD" , [spectrumCMA]),
+        ("Avg PSD" , [spectrumAvg]),
       ], location="center",
         click_policy="hide")
       figure_.add_layout(legend, 'left')
+
 
       self.spectrumFigures[block] = figure_
 
@@ -270,87 +289,163 @@ class UBXScope:
 
       self.spectrumFigures[block].renderers.extend(freqAnnotationsGPS+freqAnnotationsGalileo+freqAnnotationsGlonass+freqAnnotationsQZSS+freqAnnotationsBeidou)
 
+      #Selection Markers (Initially Hidden)
+      self.selectionMarkers[block] = Span(location=0,dimension='height', line_color='blue',line_dash='dotted', line_width=2, visible=False)
+      self.spectrumFigures[block].add_layout(self.selectionMarkers[block])
+
       #Metadata label
-      self.blockMetadataLabels[block] = Div(text=f'NO_DATA', width=PLOT_WIDTH, height=20)
+      self.blockMetadataLabels[block] = Div(text=f'No Data', width=PLOT_WIDTH, height=20)
+      self.selectionLabels[block] = Div(text='No Selection: ', height=20)
+
+
 
       #Create a column with rows for plot and metadata
-      self.blockColumnLayouts[block] = column(row(children=[self.spectrumFigures[block]],sizing_mode="stretch_both"), self.blockMetadataLabels[block])
+      self.blockColumnLayouts[block] = column(
+                                              row(children=[self.spectrumFigures[block]],sizing_mode="stretch_both"),
+                                              self.blockMetadataLabels[block],
+                                              self.selectionLabels[block]
+                                              )
 
-    #Row layout of columns with plot and additional metadata
-    self.doc.add_root(row(children=self.blockColumnLayouts, sizing_mode="stretch_both"))
+    #Items to draw not specific to one block
+    self.timeLabel = Div(text='No Time', height=20)
+
+    #Row layout of columns with plot and additional Metadata
+    self.doc.add_root(column(children=[
+                             row(children=[self.timeLabel], sizing_mode="stretch_width"),
+                             row(children=self.blockColumnLayouts, sizing_mode="stretch_both")
+                           ], sizing_mode="stretch_both"))
 
     print (f"Reading from {inputBuffer}")
     self.ubxScopeQueue = UBXScopeQueue(ser=inputBuffer, eofTimeout=0, onUBXCallback=self.onUBXMessage)
     self.ubxScopeQueue.start()
 
 
+  def updateSelectionLabel(self, block, visible=False):
+    if visible:
+      data = self.selectionLabelData[block]
+      #Assign to a text div
+      self.selectionLabels[block].text = f"Frequency: {data['frequency']} | PSD: {data['power']}dB | Max: {data['maxPower']}dB | Avg: {data['avgPower']}dB"
+    else:
+      self.selectionLabels[block].text = f'No Selection'
+
+
+  def lineSelectCallback(self, attr, old, new, block):
+    # This is received as a string representation of an array but numpy can parse it
+    # If more than one point selected find the mean and scale to the nearest int
+    indices = np.array(new)
+    if len(indices) > 0:
+      index=int(np.floor(np.mean(np.array(new))))
+
+      #Set current data values for selection
+      self.selectionLabelData[block]['dataSourceIndex'] = index
+      self.selectionLabelData[block]['frequency'] =self.spectrumDataSources[block].data['spectrumBinCenterFreqs'][index]
+      self.selectionLabelData[block]['maxPower'] =self.spectrumDataSources[block].data['spectrumMax'][index]
+      self.selectionLabelData[block]['avgPower'] = self.spectrumDataSources[block].data['spectrumAvg'][index]
+      self.selectionLabelData[block]['power'] = self.spectrumDataSources[block].data['spectrum'][index]
+
+      #And update the text label
+      self.updateSelectionLabel(block, visible=True)
+
+      #And set marker frequency
+      self.selectionMarkers[block].location= self.selectionLabelData[block]['frequency']
+      self.selectionMarkers[block].visible=True
+
+    #No Selection
+    else:
+      self.updateSelectionLabel(block, visible=False)
+      self.selectionMarkers[block].visible=False
+
   #Reset cumulative average when set visible
-  def avgVisibleChangeHandler(self,attr,old,new):
+  def avgVisibleChangeHandler(self,attr,old,new, block):
+    #when set visible
     if new == True:
-      for block in range(self.numRfBlocks):
-        #Clear the average and the time series buffer
-        self.spectrumDataSource.data[f'spectrumAvg_{block}'] = np.zeros(256)
-        self.spectrumWindow = [np.zeros((TIME_AVERAGING_WINDOW_LENGTH,SPAN_BIN_COUNT)) for block in range(self.numRfBlocks) ]
-        self.spectrumWindowIndex = self.spectrumWindowFilled = 0;
+      #reset buffer indexes
+      self.spectrumAvgBuffers[block]['index'] = 0
+      self.spectrumAvgBuffers[block]['filled'] = 1
+      #Set first row of the buffer and the current displayed average to the current spectrum
+      self.spectrumAvgBuffers[block]['buffer'][self.spectrumAvgBuffers[block]['index'],:] = self.spectrumDataSources[block].data['spectrum']
+      self.spectrumDataSources[block].data['spectrumAvg'] = self.spectrumDataSources[block].data['spectrum']
 
   #Reset spectrum max when set visible
-  def maxVisibleChangeHandler(self,attr,old,new):
+  def maxVisibleChangeHandler(self,attr,old,new, block):
     if new == True:
-      for block in range(self.numRfBlocks):
-        self.spectrumDataSource.data[f'spectrumMax_{block}'] = np.zeros(256)
+      self.spectrumDataSources[block].data['spectrumMax'] = np.zeros(SPAN_BIN_COUNT)
 
-  def updateSpectrumPlot(self, spectrumData):
+  def updateSpectrumPlots(self, spectrumDataBlocks):
     #Update spectrum data
-    self.spectrumDataSource.data = spectrumData
+    for block, spectrumData in enumerate(spectrumDataBlocks):
+      self.spectrumDataSources[block].data = spectrumData
 
-    #Update metadata
+    #Spectrum metadata
     for index, blockMetadata in enumerate(self.spectrumMetadata):
       pgaGain = blockMetadata['pgaGain']
-      timeUTC = blockMetadata['timeUTC']
-      self.blockMetadataLabels[index].text = f'PGA Gain: {pgaGain}dB \n UTC: {timeUTC}'
+      self.blockMetadataLabels[index].text = f'PGA Gain: {pgaGain}dB'
+
+    #Update the selection marker text, if the marker is set
+    for block in range(self.numRfBlocks):
+      if self.selectionMarkers[block].visible:
+
+        #Set current data values for selection
+        #Use the stored index value for the selected frequency
+        index = self.selectionLabelData[block]['dataSourceIndex']
+        self.selectionLabelData[block]['frequency'] =self.spectrumDataSources[block].data['spectrumBinCenterFreqs'][index]
+        self.selectionLabelData[block]['maxPower'] =self.spectrumDataSources[block].data['spectrumMax'][index]
+        self.selectionLabelData[block]['avgPower'] = self.spectrumDataSources[block].data['spectrumAvg'][index]
+        self.selectionLabelData[block]['power'] = self.spectrumDataSources[block].data['spectrum'][index]
+
+        #And update the text label
+        self.updateSelectionLabel(block, visible=True)
+
+    #Global Metadata
+    time = self.ubxMetadata['timeUTC']
+    self.timeLabel.text = f'Time: {time}'
 
 
   def onUBXMessage(self, msg, msgClass):
 
     if msgClass == 'SPAN':
-      newSpectrumData = {}
 
-      #Indexing for the moving average window
-      self.spectrumWindowIndex = self.spectrumWindowIndex + 1;
-      if self.spectrumWindowIndex >= TIME_AVERAGING_WINDOW_LENGTH:
-        self.spectrumWindowIndex = 0
-
-      #Buffer fullness
-      if (self.spectrumWindowFilled < TIME_AVERAGING_WINDOW_LENGTH):
-        self.spectrumWindowFilled = self.spectrumWindowFilled +1;
-
+      #Process new spectrum data
+      newSpectrumDataBlocks = [self.numRfBlocks, None]
       for block in range(msg.numRfBlocks):
+        newSpectrumData = {}
+
         #Centre Frequencies
-        newSpectrumData[f'spectrumBinCenterFreqs_{block}'] = msg.spectra[block]['spectrumBinCenterFreqs']
+        newSpectrumData['spectrumBinCenterFreqs'] = msg.spectra[block]['spectrumBinCenterFreqs']
 
         #PSD bin data
-        newSpectrumData[f'spectrum_{block}'] = msg.spectra[block]['spectrum']
+        newSpectrumData['spectrum'] = msg.spectra[block]['spectrum']
 
         #Calculate PSD max
-        newSpectrumData[f'spectrumMax_{block}'] = np.maximum(newSpectrumData[f'spectrum_{block}'], self.spectrumDataSource.data[f'spectrumMax_{block}'])
+        newSpectrumData['spectrumMax'] = np.maximum(newSpectrumData['spectrum'], self.spectrumDataSources[block].data['spectrumMax'])
 
         #Calculate Moving Average
         #Replace row at index, to avoid push/pop. Order/wrapping doesn't matter unless weighting is applied
-        blockSpectrumWindow=self.spectrumWindow[block]
-        blockSpectrumWindow[self.spectrumWindowIndex,:] = newSpectrumData[f'spectrum_{block}']
+        self.spectrumAvgBuffers[block]['buffer'][self.spectrumAvgBuffers[block]['index'],:] = newSpectrumData['spectrum']
 
-        #Set the data source average
-        newSpectrumData[f'spectrumAvg_{block}'] = np.sum(blockSpectrumWindow[0:self.spectrumWindowFilled], axis=0)/self.spectrumWindowFilled
+        #calculate column-wise (time) mean of for all filled (non-zero) buffer rows
+        newSpectrumData['spectrumAvg'] = np.sum(self.spectrumAvgBuffers[block]['buffer'][0:self.spectrumAvgBuffers[block]['filled'],:], axis=0) / self.spectrumAvgBuffers[block]['filled']
 
         #Additional metadata for annotations
         self.spectrumMetadata[block]['pgaGain'] = msg.spectra[block]['pga']
 
+        #Add spectrum for each block to one array to return, to assign to the data sources
+        newSpectrumDataBlocks[block] = newSpectrumData
 
-      self.doc.add_next_tick_callback(partial(self.updateSpectrumPlot, spectrumData=newSpectrumData))
+        #Increment indexes for moving average windows
+        self.spectrumAvgBuffers[block]['index'] = self.spectrumAvgBuffers[block]['index'] + 1;
+        #Circular buffer wrap
+        if self.spectrumAvgBuffers[block]['index'] >= TIME_AVERAGING_WINDOW_LENGTH:
+          self.spectrumAvgBuffers[block]['index'] = 0
+
+        #Increment buffer fullness till full
+        if (self.spectrumAvgBuffers[block]['filled'] < TIME_AVERAGING_WINDOW_LENGTH):
+          self.spectrumAvgBuffers[block]['filled'] = self.spectrumAvgBuffers[block]['filled'] +1;
+
+      self.doc.add_next_tick_callback(partial(self.updateSpectrumPlots, spectrumDataBlocks=newSpectrumDataBlocks))
 
     if msgClass == 'PVT':
-      for block in self.spectrumMetadata:
-        block['timeUTC'] = msg.UTC
+      self.ubxMetadata['timeUTC'] =  msg.UTC
 
 #Read from stdin, or wherever....
 inBuffer =  sys.stdin.buffer
