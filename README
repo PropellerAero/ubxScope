@@ -1,5 +1,26 @@
-- Requires pyUBX with SPAN support
-- Run in Bokeh (Tornado) server, render in browser
+UBX Scope 
+Plot Ublox UBX SPAN (RF spectrum) power spectral density plots in-browser
+Requires an F9-series Ublox receiver, with HW-MON-SPAN messages enabled.
+License: GPLv3
 
-Expects a UBX stream on stdin:
+Features:
+- Click the plot to set a marker at that frequency in either plot. Click elsewhere to remove.
+- Toggle max/avg plots to reset
+
+Setup:
+- Install pyUBX: https://github.com/mayeranalytics/pyUBX
+
+
+Usage:
+- App runs in  Bokeh (Tornado) server, and renders in-browser
+
+Expects a UBX stream on stdin.
+
+Read from a network socket:
 `nc 10.3.0.2 2001 | bokeh serve --show ubxScope.py`
+
+Read from a file, with rate limiting:
+`cat <file> | pv -L 3k | ....`
+
+Read from a serial port:
+```screen /dev/<console_port> 115200 | ....`
